@@ -19,7 +19,7 @@ In modern infrastructure, **"Layer 8"** (the human element) is the most critical
 
 1.  **Clone the repository:**
     ```bash
-    git clone https://github.com/YourUsername/MV-NSAT.git
+    git clone https://github.com/cybereagle2001/MV-NSAT-Multi-Vendor-Network-Security-Audit-Tool.git
     cd MV-NSAT
     ```
 
