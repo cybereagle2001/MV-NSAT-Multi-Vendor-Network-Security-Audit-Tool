@@ -102,17 +102,58 @@ class FortinetAudit(AuditEngine):
 
 class JuniperAudit(AuditEngine):
     def run(self):
-        print(f"\n{Colors.PURPLE}==> Auditing Juniper (Junos)...{Colors.RESET}")
-        self.check("1.1", r'set system services telnet', "Telnet disabled.", "Telnet enabled.", inverse=True)
-        self.check("1.2", r'set system services ssh', "SSH enabled.", "SSH not enabled.")
-        self.check("2.1", r'root-login allow', "Root SSH restricted.", "Root SSH allowed!", inverse=True)
-        self.check("2.2", r'protocol-version v1', "SSH v1 disabled.", "SSH v1 detected!", inverse=True)
-        self.check("3.1", r'set system login idle-timeout', "Idle timeout set.", "No idle timeout set.", warning=True)
-        self.check("3.2", r'set system login banner', "Banner configured.", "No banner configured.", warning=True)
-        self.check("4.1", r'plain-text-password', "No plain-text passwords.", "Plain-text passwords detected!", inverse=True)
-        self.check("5.1", r'set system syslog host', "Remote Syslog set.", "Remote Syslog missing.")
-        self.check("6.1", r'set snmp community (public|private)', "Default SNMP removed.", "Default SNMP detected!", inverse=True)
-        self.check("7.1", r'set interfaces lo0.*filter (input|input-list)', "lo0 filter applied.", "No lo0 filter!")
+        print(f"\n{Colors.PURPLE}==> Auditing Juniper (Junos) per CIS v2.1.0...{Colors.RESET}")
+        
+        # 6.10.6 Ensure Telnet is Not Set (Automated) [cite: 409, 348]
+        # Hierarchy: [edit system services] [cite: 353, 354]
+        self.check("6.10.6", r'set system services telnet', 
+                   "Telnet is disabled (Standard).", "Telnet service is enabled!", inverse=True)
+
+        # 6.10.1.1 Ensure SSH Service is Configured (Manual/Scorable) [cite: 406, 201]
+        # SSH is the secure alternative to Telnet[cite: 202, 245].
+        self.check("6.10.1.1", r'set system services ssh', 
+                   "SSH service is enabled.", "SSH service is missing.")
+
+        # 6.10.1.5 Ensure Remote Root-Login is denied via SSH (Automated) [cite: 406, 241]
+        # Hierarchy: [edit system services ssh] [cite: 241]
+        # Must NOT contain 'root-login allow'[cite: 406, 241].
+        self.check("6.10.1.5", r'root-login allow', 
+                   "Remote root login is restricted.", "Root login allowed via SSH!", inverse=True)
+
+        # 6.10.1.2 Ensure SSH is Restricted to Version 2 (Automated) [cite: 406, 234]
+        # Junos uses SSH v2 by default but versioning should be explicit[cite: 234].
+        self.check("6.10.1.2", r'protocol-version v2', 
+                   "SSH v2 is explicitly enforced.", "SSH versioning not strictly set to v2.", warning=True)
+
+        # 6.6.3 Ensure Idle Timeout is set for all Login Classes (Automated) [cite: 403, 257]
+        # Hierarchy: [edit system login class <name>] [cite: 86, 257]
+        self.check("6.6.3", r'idle-timeout \d+', 
+                   "Login idle timeout is configured.", "No idle-timeout found in login classes.", warning=True)
+
+        # 6.6.8 Ensure login message is set (Automated) [cite: 403, 271]
+        # Hierarchy: [edit system login] [cite: 271]
+        self.check("6.6.8", r'set system login announcement|set system login message', 
+                   "Login banner/message is configured.", "Legal login message is missing.", warning=True)
+
+        # 6.14 Ensure Configuration File Encryption is Set (Automated) [cite: 411, 467]
+        # Prevents plain-text recovery of secrets from the config[cite: 467].
+        self.check("6.14", r'set system configuration-database encryption', 
+                   "Config file encryption is active.", "Config file encryption is NOT set!")
+
+        # 6.12.1 Ensure External SYSLOG Host is Set (Automated) [cite: 411, 449]
+        # Requires 'any informational' or better[cite: 449].
+        self.check("6.12.1", r'set system syslog host \S+ any informational', 
+                   "Remote Syslog host is correctly configured.", "Remote Syslog missing or level too low.")
+
+        # 5.1 Ensure Common SNMP Community Strings are NOT used (Automated) [cite: 399, 185]
+        # Targets 'public' and 'private' strings[cite: 185].
+        self.check("5.1", r'set snmp community (public|private)', 
+                   "Common SNMP strings removed.", "Default SNMP community strings detected!", inverse=True)
+
+        # 3.10 Ensure inbound firewall filter is set for Loopback interface (Automated) [cite: 395, 98]
+        # Protecting the Routing Engine (RE) via lo0[cite: 35, 98].
+        self.check("3.10", r'set interfaces lo0 unit 0 family inet filter input', 
+                   "Loopback interface filter is applied.", "No inbound filter on lo0 (Critical RE risk)!")
 
 class CiscoAudit(AuditEngine):
     def run(self):
