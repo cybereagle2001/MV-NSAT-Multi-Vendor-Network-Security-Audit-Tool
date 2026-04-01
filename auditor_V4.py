@@ -88,17 +88,57 @@ class AuditEngine:
 
 class FortinetAudit(AuditEngine):
     def run(self):
-        print(f"\n{Colors.PURPLE}==> Auditing Fortinet (FortiOS)...{Colors.RESET}")
-        self.check("1.1", r'set allowaccess.*telnet', "Telnet disabled.", "Telnet enabled!", inverse=True)
-        self.check("1.2", r'set allowaccess.*(?<!s)http\b', "HTTP disabled.", "HTTP management enabled.", inverse=True)
-        self.check("2.1", r'set admin-https-ssl-versions tlsv1-[23]', "Strong TLS enforced.", "Legacy TLS allowed.", warning=True)
-        self.check("2.2", r'set admin-sport (443|80)', "Admin port obfuscated.", "Default Admin port (443/80) in use.", inverse=True, warning=True)
-        self.check("3.1", r'set admintimeout', "Admin idle timeout set.", "No idle timeout configured.", warning=True)
-        self.check("3.2", r'set pre-login-banner enable', "Pre-login banner enabled.", "Banner disabled.", warning=True)
-        self.check("4.1", r'config system admin.*?edit "admin"', "Default admin renamed.", "Default admin account exists.", inverse=True)
-        self.check("5.1", r'config log (fortianalyzer|syslogd) setting', "Remote logging set.", "No remote logging detected.")
-        self.check("6.1", r'set ntpserver', "NTP configured.", "NTP not configured.")
-        self.check("7.1", r'set snmp community (public|private)', "Default SNMP strings removed.", "Default SNMP found!", inverse=True)
+        print(f"\n{Colors.PURPLE}==> Auditing Fortinet (FortiOS) per CIS 7.x Benchmarks...{Colors.RESET}")
+
+        # 2.1.1 Disable Telnet Service on Management Interfaces (Automated)
+        # Requirement: Ensure 'telnet' is not in the allowaccess list.
+        self.check("2.1.1", r'set allowaccess.*telnet', 
+                   "Telnet disabled on interfaces.", "Telnet enabled on management interfaces!", inverse=True)
+
+        # 2.1.2 Disable HTTP Service on Management Interfaces (Automated)
+        # Requirement: Ensure 'http' (non-secure) is not in the allowaccess list.
+        self.check("2.1.2", r'set allowaccess.*(?<!s)http\b', 
+                   "HTTP disabled on interfaces.", "Insecure HTTP management enabled!", inverse=True)
+
+        # 2.1.6 Configure Admin HTTPS Port (Automated/Scorable)
+        # Recommendation: Change from default 443 to a non-standard port.
+        self.check("2.1.6", r'set admin-sport 443', 
+                   "Admin HTTPS port is obfuscated.", "Default HTTPS port (443) in use.", inverse=True, warning=True)
+
+        # 2.1.10 Ensure Idle Timeout is Configured (Automated)
+        # Default is often 5 mins; CIS recommends a specific value.
+        self.check("2.1.10", r'set admintimeout', 
+                   "Admin idle timeout is set.", "No idle timeout configured (Security Risk).", warning=True)
+
+        # 2.1.12 Ensure Pre-login Banner is Enabled (Automated)
+        # Used for legal notification before authentication.
+        self.check("2.1.12", r'set pre-login-banner enable', 
+                   "Pre-login banner enabled.", "Pre-login banner is disabled.", warning=True)
+
+        # 2.2.1 Disable Password Plaintext Display (Automated)
+        # Requirement: Use 'set private-key-password-encryption enable' or similar global enc.
+        self.check("2.2.1", r'set password-policy-encryption enable', 
+                   "Password encryption enabled.", "Plaintext passwords may be visible in config.")
+
+        # 2.3.1 Ensure SNMP Agent is Disabled (if not used) or Strings are Changed (Automated)
+        # Specifically targeting default 'public' or 'private' communities.
+        self.check("2.3.1", r'set community (public|private)', 
+                   "Default SNMP strings removed.", "Default SNMP 'public/private' detected!", inverse=True)
+
+        # 5.1.2 Ensure NTP is Enabled and Configured (Automated)
+        # Critical for log synchronization and certificate validation.
+        self.check("5.1.2", r'set ntpsync enable', 
+                   "NTP synchronization enabled.", "NTP is not synchronized.")
+
+        # 7.2.1 Centralized Logging and Reporting (Scorable)
+        # Verifies if FortiAnalyzer or Syslog is configured.
+        self.check("7.2.1", r'config log (fortianalyzer|syslogd) setting', 
+                   "Centralized logging configured.", "No remote logging (FAZ/Syslog) detected.")
+
+        # 7.3.1 Encrypt Log Transmission (Automated)
+        # Ensures log traffic is encrypted via 'set enc-algorithm'.
+        self.check("7.3.1", r'set enc-algorithm (high|medium)', 
+                   "Log transmission encryption set.", "Logs are being transmitted unencrypted!", warning=True)
 
 class JuniperAudit(AuditEngine):
     def run(self):
